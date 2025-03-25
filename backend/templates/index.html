@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShelfAI Pro - Intelligent Inventory Management</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Three.js with additional modules -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/loaders/GLTFLoader.js"></script>
+    
+    <!-- Tween.js for smooth animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+    
+    <!-- Custom Styling -->
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f1c2e 0%, #1a2b3c 100%);
+            color: #e0e7ff;
+            font-family: 'Space Grotesk', monospace;
+            overflow-x: hidden;
+        }
+        .futuristic-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            transition: all 0.3s ease;
+        }
+        .holographic-btn {
+            background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
+            transition: transform 0.2s, box-shadow 0.3s;
+        }
+        .holographic-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.8);
+        }
+        #shelf3DContainer {
+            position: relative;
+            width: 100%;
+            height: 500px;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+        .product-tooltip {
+            position: absolute;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <div id="app" class="container mx-auto px-4 py-8">
+        <!-- Futuristic Header -->
+        <header class="text-center mb-12">
+            <h1 class="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600">
+                ShelfAI Pro
+            </h1>
+            <p class="text-xl text-gray-300 mt-2">Intelligent Inventory Visualization</p>
+        </header>
+
+        <!-- 3D Shelf Visualization Section -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- 3D Shelf Container -->
+            <div class="futuristic-card p-6 rounded-xl">
+                <h2 class="text-2xl mb-4">Interactive 3D Shelf</h2>
+                <div id="shelf3DContainer"></div>
+                <div id="productTooltip" class="product-tooltip hidden"></div>
+            </div>
+
+            <!-- Product Interaction Panel -->
+            <div class="futuristic-card p-6 rounded-xl">
+                <h2 class="text-2xl mb-4">Product Insights</h2>
+                <div id="productDetails" class="space-y-3">
+                    <p class="text-gray-400">Click or hover on products in the 3D view</p>
+                </div>
+                <div class="mt-4">
+                    <button id="resetViewBtn" class="holographic-btn w-full py-3 rounded-lg text-white">
+                        Reset 3D View
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Additional Sections -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+            <!-- Stock Analytics -->
+            <div class="futuristic-card p-6 rounded-xl">
+                <h2 class="text-2xl mb-4">Stock Analytics</h2>
+                <canvas id="stockChart"></canvas>
+            </div>
+
+            <!-- Inventory Control -->
+            <div class="futuristic-card p-6 rounded-xl">
+                <h2 class="text-2xl mb-4">Inventory Management</h2>
+                <div id="inventoryControls" class="space-y-4">
+                    <div class="flex items-center space-x-4">
+                        <label class="w-1/3">Low Stock Threshold:</label>
+                        <input type="number" id="lowStockThreshold" 
+                               class="w-2/3 bg-gray-700 rounded p-2" 
+                               value="10" min="1">
+                    </div>
+                    <button id="updateInventoryBtn" class="holographic-btn w-full py-3 rounded-lg text-white">
+                        Update Inventory Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class Advanced3DShelfManager {
+            constructor() {
+                this.scene = null;
+                this.camera = null;
+                this.renderer = null;
+                this.controls = null;
+                this.productMeshes = [];
+                this.raycaster = new THREE.Raycaster();
+                this.mouse = new THREE.Vector2();
+
+                this.productData = [
+                    { 
+                        name: 'Milk', 
+                        color: 0xffffff, 
+                        quantity: 15, 
+                        position: { x: -3, y: 1, z: 0 },
+                        details: 'Fresh whole milk, 2% fat'
+                    },
+                    { 
+                        name: 'Bread', 
+                        color: 0xd2691e, 
+                        quantity: 20, 
+                        position: { x: 0, y: 1, z: 0 },
+                        details: 'Whole wheat bread, 500g loaf'
+                    },
+                    { 
+                        name: 'Eggs', 
+                        color: 0xf0e68c, 
+                        quantity: 30, 
+                        position: { x: 3, y: 1, z: 0 },
+                        details: 'Free-range large eggs, dozen pack'
+                    }
+                ];
+
+                this.init();
+            }
+
+            init() {
+                this.initScene();
+                this.createShelf();
+                this.createProducts();
+                this.setupLighting();
+                this.setupInteractions();
+                this.setupStockChart();
+                this.animate();
+            }
+
+            initScene() {
+                const container = document.getElementById('shelf3DContainer');
+                
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                
+                this.renderer.setSize(container.clientWidth, container.clientHeight);
+                this.renderer.shadowMap.enabled = true;
+                container.appendChild(this.renderer.domElement);
+
+                this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                this.controls.dampingFactor = 0.05;
+
+                this.camera.position.set(0, 5, 10);
+                this.camera.lookAt(0, 0, 0);
+            }
+
+            createShelf() {
+                const shelfGeometry = new THREE.BoxGeometry(10, 5, 2);
+                const shelfMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0x2c3e50,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                
+                const shelf = new THREE.Mesh(shelfGeometry, shelfMaterial);
+                shelf.position.y = 0;
+                shelf.receiveShadow = true;
+                this.scene.add(shelf);
+            }
+
+            createProducts() {
+                this.productData.forEach(product => {
+                    const geometry = new THREE.BoxGeometry(1, 1, 0.5);
+                    const material = new THREE.MeshPhongMaterial({ 
+                        color: product.color,
+                        shininess: 60
+                    });
+                    
+                    const productMesh = new THREE.Mesh(geometry, material);
+                    productMesh.position.set(
+                        product.position.x, 
+                        product.position.y, 
+                        product.position.z
+                    );
+                    productMesh.userData = product;
+                    productMesh.castShadow = true;
+                    
+                    this.scene.add(productMesh);
+                    this.productMeshes.push(productMesh);
+                });
+            }
+
+            setupLighting() {
+                const ambientLight = new THREE.AmbientLight(0x404040);
+                this.scene.add(ambientLight);
+
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+                directionalLight.position.set(5, 5, 5);
+                directionalLight.castShadow = true;
+                this.scene.add(directionalLight);
+            }
+
+            setupInteractions() {
+                const container = document.getElementById('shelf3DContainer');
+                
+                container.addEventListener('mousemove', this.onMouseMove.bind(this), false);
+                container.addEventListener('click', this.onMouseClick.bind(this), false);
+
+                document.getElementById('resetViewBtn').addEventListener('click', this.resetView.bind(this));
+            }
+
+            onMouseMove(event) {
+                const container = document.getElementById('shelf3DContainer');
+                const tooltip = document.getElementById('productTooltip');
+                
+                this.mouse.x = ((event.clientX - container.getBoundingClientRect().left) / container.clientWidth) * 2 - 1;
+                this.mouse.y = -((event.clientY - container.getBoundingClientRect().top) / container.clientHeight) * 2 + 1;
+
+                this.raycaster.setFromCamera(this.mouse, this.camera);
+                const intersects = this.raycaster.intersectObjects(this.productMeshes);
+
+                if (intersects.length > 0) {
+                    const product = intersects[0].object.userData;
+                    tooltip.innerHTML = `
+                        <strong>${product.name}</strong><br>
+                        Quantity: ${product.quantity}<br>
+                        ${product.details}
+                    `;
+                    tooltip.style.left = `${event.clientX - container.getBoundingClientRect().left}px`;
+                    tooltip.style.top = `${event.clientY - container.getBoundingClientRect().top}px`;
+                    tooltip.classList.remove('hidden');
+                } else {
+                    tooltip.classList.add('hidden');
+                }
+            }
+
+            onMouseClick(event) {
+                const container = document.getElementById('shelf3DContainer');
+                const productDetails = document.getElementById('productDetails');
+                
+                this.mouse.x = ((event.clientX - container.getBoundingClientRect().left) / container.clientWidth) * 2 - 1;
+                this.mouse.y = -((event.clientY - container.getBoundingClientRect().top) / container.clientHeight) * 2 + 1;
+
+                this.raycaster.setFromCamera(this.mouse, this.camera);
+                const intersects = this.raycaster.intersectObjects(this.productMeshes);
+
+                if (intersects.length > 0) {
+                    const product = intersects[0].object.userData;
+                    productDetails.innerHTML = `
+                        <div class="bg-gray-800 p-4 rounded">
+                            <h3 class="text-xl font-bold mb-2">${product.name} Details</h3>
+                            <p><strong>Quantity:</strong> ${product.quantity}</p>
+                            <p><strong>Description:</strong> ${product.details}</p>
+                            <button class="mt-3 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">
+                                Restock
+                            </button>
+                        </div>
+                    `;
+
+                    // Animate selected product
+                    gsap.to(intersects[0].object.scale, {
+                        duration: 0.3,
+                        x: 1.2,
+                        y: 1.2,
+                        z: 1.2,
+                        yoyo: true,
+                        repeat: 1
+                    });
+                }
+            }
+
+            resetView() {
+                gsap.to(this.camera.position, {
+                    duration: 1,
+                    x: 0,
+                    y: 5,
+                    z: 10,
+                    onUpdate: () => this.camera.lookAt(0, 0, 0)
+                });
+            }
+
+            setupStockChart() {
+                const ctx = document.getElementById('stockChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: this.productData.map(p => p.name),
+                        datasets: [{
+                            label: 'Stock Levels',
+                            data: this.productData.map(p => p.quantity),
+                            backgroundColor: [
+                                'rgba(255, 99, 132, 0.6)',
+                                'rgba(54, 162, 235, 0.6)',
+                                'rgba(255, 206, 86, 0.6)'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+
+            animate() {
+                requestAnimationFrame(this.animate.bind(this));
+                
+                this.controls.update();
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            new Advanced3DShelfManager();
+        });
+    </script>
+</body>
+</html>
